@@ -1,0 +1,5 @@
+{
+  "name": "Samuda MPRS - Material Purchase Requisition System",
+  "description": "A high-performance ERP system for Samuda Construction Ltd to manage material purchase requisitions with an Excel-like grid, intelligent history tracking, and automated PDF generation.",
+  "requestFramePermissions": []
+}
