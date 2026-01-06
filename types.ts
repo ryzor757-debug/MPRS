@@ -22,6 +22,7 @@ export interface MPRSItem {
 }
 
 export interface Requisition {
+  id: string;
   mprs_no: string;
   mprs_date: string;
   items: MPRSItem[];

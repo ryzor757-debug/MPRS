@@ -79,14 +79,16 @@ export default function OrderHistory() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredHistory.length > 0 ? filteredHistory.map((req) => (
+              {filteredHistory.length > 0 ? filteredHistory.map((req, idx) => (
                 <tr 
-                  key={req.mprs_no} 
+                  key={req.id || idx} 
                   className="hover:bg-slate-50 transition-colors group cursor-pointer"
                   onClick={() => setSelectedReq(req)}
                 >
                   <td className="px-6 py-4">
-                    <span className="font-mono text-sm text-blue-600 font-bold">{req.mprs_no}</span>
+                    <span className={`font-mono text-sm font-bold ${req.mprs_no ? 'text-blue-600' : 'text-slate-300 italic text-xs'}`}>
+                      {req.mprs_no || 'NOT ASSIGNED'}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="space-y-1">
@@ -147,7 +149,7 @@ export default function OrderHistory() {
                   <Package size={20} />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">{selectedReq.mprs_no}</h2>
+                  <h2 className="text-lg font-bold text-slate-900">{selectedReq.mprs_no || 'Unassigned MPRS'}</h2>
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Requisition Archive</p>
                 </div>
               </div>
@@ -169,7 +171,6 @@ export default function OrderHistory() {
             </div>
 
             <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
-              {/* Meta Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-4">
                   <div className="p-2 bg-white rounded-lg shadow-sm text-slate-400"><Calendar size={18} /></div>

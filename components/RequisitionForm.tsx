@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Trash2, Plus, Save, Download, FileText, AlertCircle, Sparkles, Clipboard, Eraser } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Trash2, Plus, Save, Download, AlertCircle, Sparkles, Eraser } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MPRSItem, MPRSStatus, Requisition, HistoryItem } from '../types';
 import { UNITS, DEPARTMENTS, GRID_COLUMNS } from '../constants';
@@ -27,8 +27,8 @@ export default function RequisitionForm() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<MPRSItem[]>([initialRow(), initialRow(), initialRow()]);
   const [meta, setMeta] = useState({
-    title: 'Requisition for PHC Pile (Unit-1)',
-    department: 'Cage Settings',
+    title: 'Requisition for Materials',
+    department: DEPARTMENTS[0],
     mprsDate: new Date().toISOString().split('T')[0]
   });
   const [mprsNo, setMprsNo] = useState('');
@@ -37,14 +37,6 @@ export default function RequisitionForm() {
     show: false, x: 0, y: 0, items: [], itemName: ''
   });
 
-  useEffect(() => {
-    // Generate MPRS No
-    const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    setMprsNo(`MPRS-${date}-${rand}`);
-  }, []);
-
-  // Excel-like row management
   const updateRow = (id: string, field: keyof MPRSItem, value: any) => {
     setRows(prev => prev.map(row => row.id === id ? { ...row, [field]: value } : row));
   };
@@ -63,10 +55,9 @@ export default function RequisitionForm() {
     }
   };
 
-  // Bulk Paste Logic
   const handlePaste = (e: React.ClipboardEvent) => {
     const pasteData = e.clipboardData.getData('text');
-    if (!pasteData || !pasteData.includes('\t')) return; // Only process if it looks like Excel data (tab-separated)
+    if (!pasteData || !pasteData.includes('\t')) return;
 
     e.preventDefault();
     const lines = pasteData.split(/\r?\n/).filter(line => line.trim() !== '');
@@ -86,7 +77,6 @@ export default function RequisitionForm() {
       };
     });
 
-    // Strategy: Replace empty rows with pasted rows, or append if grid is already used
     setRows(prev => {
       const filteredPrev = prev.filter(r => r.item_name.trim() !== '');
       return [...filteredPrev, ...newRows];
@@ -94,34 +84,60 @@ export default function RequisitionForm() {
   };
 
   const handleSave = async () => {
-    const validRows = rows.filter(r => r.item_name && r.quantity);
+    const validRows = rows.filter(r => r.item_name.trim() && r.quantity !== '');
+    
     if (validRows.length === 0) {
       alert("Please fill at least one row with Item Name and Quantity.");
       return;
     }
 
     setIsSaving(true);
-    const requisition: Requisition = {
-      mprs_no: mprsNo,
-      mprs_date: meta.mprsDate,
-      items: validRows.map(r => ({ ...r, mprs_no: mprsNo })),
-      status: MPRSStatus.PENDING,
-      title: meta.title,
-      department: meta.department
-    };
 
-    // Mock Save
-    await new Promise(r => setTimeout(r, 1000));
-    const existing = JSON.parse(localStorage.getItem('samuda_mprs_history') || '[]');
-    localStorage.setItem('samuda_mprs_history', JSON.stringify([requisition, ...existing]));
-    
-    setIsSaving(false);
-    navigate('/history');
+    try {
+      const requisition: Requisition = {
+        id: crypto.randomUUID(),
+        mprs_no: mprsNo.trim(),
+        mprs_date: meta.mprsDate,
+        items: validRows.map(r => ({ 
+          ...r, 
+          mprs_no: mprsNo.trim(),
+          mprs_date: meta.mprsDate 
+        })),
+        status: MPRSStatus.PENDING,
+        title: meta.title,
+        department: meta.department
+      };
+
+      let historyArray: Requisition[] = [];
+      const savedData = localStorage.getItem('samuda_mprs_history');
+      if (savedData) {
+        try {
+          const parsed = JSON.parse(savedData);
+          if (Array.isArray(parsed)) {
+            historyArray = parsed;
+          }
+        } catch (e) {
+          console.warn("Storage corruption detected, starting fresh");
+        }
+      }
+
+      const newHistory = [requisition, ...historyArray];
+      localStorage.setItem('samuda_mprs_history', JSON.stringify(newHistory));
+      
+      await new Promise(r => setTimeout(r, 800));
+      setIsSaving(false);
+      navigate('/history');
+    } catch (error) {
+      console.error("Save error:", error);
+      alert("Failed to save requisition.");
+      setIsSaving(false);
+    }
   };
 
   const handleDownloadPDF = () => {
     const requisition: Requisition = {
-      mprs_no: mprsNo,
+      id: 'preview',
+      mprs_no: mprsNo.trim(),
       mprs_date: meta.mprsDate,
       items: rows.filter(r => r.item_name),
       status: MPRSStatus.PENDING,
@@ -131,30 +147,33 @@ export default function RequisitionForm() {
     generatePDF(requisition);
   };
 
-  // Intelligent history logic
   const handleItemNameFocus = (e: React.FocusEvent<HTMLInputElement>, row: MPRSItem) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const history = JSON.parse(localStorage.getItem('samuda_mprs_history') || '[]');
+    const saved = localStorage.getItem('samuda_mprs_history');
+    if (!saved) return;
     
-    // Find last 3 orders for this item
-    const matches: HistoryItem[] = [];
-    history.forEach((req: Requisition) => {
-      req.items.forEach(item => {
-        if (item.item_name.toLowerCase() === row.item_name.toLowerCase() && item.item_name) {
-          matches.push({ date: item.mprs_date, quantity: item.quantity, purpose: item.purpose });
-        }
+    try {
+      const history: Requisition[] = JSON.parse(saved);
+      const matches: HistoryItem[] = [];
+      
+      history.forEach((req) => {
+        req.items.forEach(item => {
+          if (item.item_name.toLowerCase() === row.item_name.toLowerCase() && item.item_name) {
+            matches.push({ date: item.mprs_date, quantity: item.quantity, purpose: item.purpose });
+          }
+        });
       });
-    });
 
-    if (matches.length > 0) {
-      setHistoryPopup({
-        show: true,
-        x: rect.left,
-        y: rect.bottom + window.scrollY,
-        items: matches.slice(0, 3),
-        itemName: row.item_name
-      });
-    }
+      if (matches.length > 0) {
+        setHistoryPopup({
+          show: true,
+          x: rect.left,
+          y: rect.bottom + window.scrollY,
+          items: matches.slice(0, 3),
+          itemName: row.item_name
+        });
+      }
+    } catch (e) {}
   };
 
   const handleItemNameBlur = () => {
@@ -169,7 +188,6 @@ export default function RequisitionForm() {
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-6 pb-20">
-      {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -179,10 +197,6 @@ export default function RequisitionForm() {
           <p className="text-sm text-slate-500">Form to request construction materials for Zone-16 MSEZ.</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500">
-            <Clipboard size={14} />
-            <span>Copy from Excel and Paste (Ctrl+V) anywhere in grid</span>
-          </div>
           <button 
             onClick={handleDownloadPDF}
             className="flex items-center gap-2 px-4 py-2 text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
@@ -196,12 +210,11 @@ export default function RequisitionForm() {
             className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md active:scale-95 disabled:opacity-50"
           >
             {isSaving ? <span className="animate-spin mr-2">●</span> : <Save size={18} />}
-            Submit Requisition
+            {isSaving ? 'Submitting...' : 'Submit Requisition'}
           </button>
         </div>
       </div>
 
-      {/* Requisition Meta Info */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <div className="space-y-2">
           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Requisition Title</label>
@@ -222,11 +235,12 @@ export default function RequisitionForm() {
           </select>
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">MPRS No (Auto)</label>
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">MPRS No (Manual)</label>
           <input 
             value={mprsNo} 
-            disabled 
-            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 font-mono"
+            onChange={e => setMprsNo(e.target.value)}
+            placeholder="Optional..."
+            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 font-mono focus:ring-2 focus:ring-blue-500 outline-none"
           />
         </div>
         <div className="space-y-2">
@@ -240,7 +254,6 @@ export default function RequisitionForm() {
         </div>
       </div>
 
-      {/* Excel-like Grid */}
       <div 
         className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col"
         onPaste={handlePaste}
@@ -379,7 +392,6 @@ export default function RequisitionForm() {
         </div>
       </div>
 
-      {/* History Popup */}
       {historyPopup.show && (
         <div 
           className="fixed z-50 w-64 bg-white border border-slate-200 shadow-xl rounded-xl p-4 animate-in slide-in-from-top-2 duration-200"

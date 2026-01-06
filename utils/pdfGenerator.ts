@@ -37,7 +37,7 @@ export const generatePDF = (req: Requisition) => {
     // 1. Initial Header (First Page)
     drawHeader(doc, pageWidth);
     
-    // 2. Meta Info Table (Title, Dept, No, Date) - Usually only on page 1
+    // 2. Meta Info Table (Title, Dept, No, Date)
     const metaData = [
       ['Requisition Title :', req.title || ''],
       ['Department :', req.department || ''],
@@ -64,7 +64,7 @@ export const generatePDF = (req: Requisition) => {
       }
     });
 
-    // 3. Items Table with Multi-page Robustness
+    // 3. Items Table with Multi-page Robustness & Fixed Column Widths
     const tableHeaders = [[
       'Sl No', 
       'Name of Item', 
@@ -89,14 +89,15 @@ export const generatePDF = (req: Requisition) => {
       item.remarks || ''
     ]);
 
+    // Precise Width Calculation (Sum = 190mm)
+    // 7 + 22 + 42 + 16 + 10 + 25 + 15 + 21 + 32 = 190
     autoTable(doc, {
       head: tableHeaders,
       body: tableData,
-      startY: (doc as any).lastAutoTable.finalY + 5,
-      // margin.top is critical: it defines where the table starts on subsequent pages
+      startY: (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 5 : 60,
       margin: { left: margin, right: margin, top: 40 }, 
       theme: 'grid',
-      showHead: 'everyPage', // Explicitly repeat the header row
+      showHead: 'everyPage', 
       tableWidth: contentWidth,
       styles: { 
         fontSize: 8, 
@@ -106,7 +107,7 @@ export const generatePDF = (req: Requisition) => {
         textColor: [0, 0, 0],
         valign: 'middle',
         font: 'Helvetica',
-        overflow: 'linebreak'
+        overflow: 'linebreak' // Ensures remarks wrap instead of overflowing
       },
       headStyles: { 
         fillColor: [255, 255, 255], 
@@ -116,19 +117,17 @@ export const generatePDF = (req: Requisition) => {
         lineWidth: 0.2
       },
       columnStyles: {
-        0: { halign: 'center', cellWidth: 10 },
-        1: { cellWidth: 25 },
-        2: { cellWidth: 40 },
-        3: { halign: 'center', cellWidth: 18 },
+        0: { halign: 'center', cellWidth: 7 },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 42 },
+        3: { halign: 'center', cellWidth: 16 },
         4: { halign: 'center', cellWidth: 10 },
         5: { cellWidth: 25 },
         6: { halign: 'center', cellWidth: 15 },
-        7: { halign: 'center', cellWidth: 20 },
-        8: { cellWidth: 27 }
+        7: { halign: 'center', cellWidth: 21 },
+        8: { cellWidth: 32 } // Sufficient space for remarks within 190mm total
       },
-      // Draw company header on every new page
       didDrawPage: (data) => {
-        // Skip drawing header on the first page as we manually drew it to handle the Meta Table startY
         if (data.pageNumber > 1) {
           drawHeader(doc, pageWidth);
         }
@@ -140,11 +139,10 @@ export const generatePDF = (req: Requisition) => {
     const pageHeight = doc.internal.pageSize.getHeight();
     
     let footerY = finalY;
-    // If footer doesn't fit, move to new page and redraw header there too
     if (footerY > pageHeight - 20) {
       doc.addPage();
       drawHeader(doc, pageWidth);
-      footerY = 50; // Start signatures lower on new page after header
+      footerY = 50; 
     }
 
     doc.setFontSize(9);
@@ -159,7 +157,6 @@ export const generatePDF = (req: Requisition) => {
       doc.text(label, xCenter, footerY, { align: 'center' });
     });
 
-    // Save the PDF
     doc.save(`${req.mprs_no || 'MPRS_Slip'}.pdf`);
   } catch (error) {
     console.error("PDF Generation failed:", error);

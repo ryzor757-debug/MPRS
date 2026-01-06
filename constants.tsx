@@ -13,7 +13,31 @@ export const SIDEBAR_MENU = [
 ];
 
 export const UNITS = ['Pcs', 'Kg', 'Mtr', 'Sft', 'Cft', 'Bag', 'Drum', 'Liter', 'Set', 'Bundle'];
-export const DEPARTMENTS = ['Cage Settings', 'Store Department', 'Plant Operations', 'Maintenance', 'Admin'];
+
+export const DEPARTMENTS = [
+  'Feed Hopper',
+  'Heading & Cutting',
+  'Mould Maintenance',
+  'Pile Shoe Making',
+  'Project',
+  'QC Lab',
+  'Spinning Machine',
+  'Steam Pool',
+  'Tensioning Machine',
+  'Utility',
+  'Wire Drawing Machine',
+  'Workshop',
+  'Apron Machine',
+  'Batching Plant',
+  'Boiler',
+  'Cage Making',
+  'Cage Settings & Fittings',
+  'Crane',
+  'Cushion Making',
+  'Delivery',
+  'Demoulding Machine',
+  'Admin'
+];
 
 export const GRID_COLUMNS = [
   { key: 'item_name', label: 'Name of Item', width: '250px' },
